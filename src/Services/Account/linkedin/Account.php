@@ -226,7 +226,7 @@ class Account implements PlatformAccountInterface
 
                     $fileURL = imageURL($file,"post",true);
 
-                    $imageContainer = $this->apiClient($token )
+                    $imageContainer = $this->apiClient($token,$configuration)
                     ->post(self::getApiUrl('rest/images', [
                         'action' => 'initializeUpload'
                     ],$configuration), [
@@ -235,7 +235,7 @@ class Account implements PlatformAccountInterface
                     ->json('value');
     
     
-                    $response = $this->apiClient($token)
+                    $response = $this->apiClient($token,$configuration)
                         ->attach('file', fopen($fileURL, 'r'))
                         ->post($imageContainer['uploadUrl']);
         
@@ -279,7 +279,7 @@ class Account implements PlatformAccountInterface
                         ...$attachMediaObj
                     ];
 
-                    $response = $this->apiClient($token)->post(self::getApiUrl('rest/posts',[],$configuration), $postData);
+                    $response = $this->apiClient($token,$configuration)->post(self::getApiUrl('rest/posts',[],$configuration), $postData);
 
 
                     if ($response->successful()) {
@@ -315,7 +315,7 @@ class Account implements PlatformAccountInterface
                     "isReshareDisabledByAuthor" => false
                 ];
 
-                $response = $this->apiClient($token)->post(self::getApiUrl('rest/posts', [], $configuration), $postData);
+                $response = $this->apiClient($token,$configuration)->post(self::getApiUrl('rest/posts', [], $configuration), $postData);
 
       
 
@@ -384,11 +384,20 @@ class Account implements PlatformAccountInterface
 
 
 
-    private function apiClient($token)
+    private function apiClient($token, $configuration = null)
     {
+        // return Http::withHeaders([
+        //     'X-Restli-Protocol-Version' => '2.0.0',
+        //     'LinkedIn-Version' => '202411',
+        // ])->withToken($token)->retry(1, 3000);
+
+        /*  
+                previosuly static version added but it is not good practice so we have added dynamic versioning based on configuration or default to 202606 if not set.
+        */
+        $apiVersion = $configuration->api_version ?? config('platforms.linkedin.api_version', '202606');
         return Http::withHeaders([
             'X-Restli-Protocol-Version' => '2.0.0',
-            'LinkedIn-Version' => '202411',
+            'LinkedIn-Version' => $apiVersion,
         ])->withToken($token)->retry(1, 3000);
     }
 
@@ -431,7 +440,7 @@ class Account implements PlatformAccountInterface
             foreach ($metricTypes as $metricType) {
                 $apiUrl = self::API_URL . "/rest/memberCreatorPostAnalytics?q=entity&entity=(share:{$postUrn})&queryType={$metricType}&aggregation=TOTAL";
 
-                $response = $this->apiClient($token)->get($apiUrl);
+                $response = $this->apiClient($token,$account->platform->configuration)->get($apiUrl);
 
                 if ($response->successful()) {
                     $data = $response->json();
@@ -490,7 +499,7 @@ class Account implements PlatformAccountInterface
 
             $apiUrl = self::getApiUrl('rest/posts', $params, $account->platform->configuration);
 
-            $apiResponse = $this->apiClient($token)->get($apiUrl);
+            $apiResponse = $this->apiClient($token,$account->platform->configuration)->get($apiUrl);
             $apiResponse = $apiResponse->json();
 
             if ($apiResponse['errors'] ?? false) {

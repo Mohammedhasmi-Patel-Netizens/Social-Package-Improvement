@@ -38,9 +38,8 @@ class Account implements PlatformAccountInterface
 
     const BASE_URL = 'https://x.com';
     const API_URL = 'https://api.x.com/2';
-    const UPLOAD_URL = 'https://api.x.com/2';
-
-
+    // const UPLOAD_URL = 'https://api.x.com/2';
+    const UPLOAD_URL = 'https://upload.twitter.com/1.1';
 
 
     public function __construct()
