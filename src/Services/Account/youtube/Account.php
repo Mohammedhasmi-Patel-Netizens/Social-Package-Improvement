@@ -14,6 +14,16 @@ use Exception;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\File;
 
+
+
+/* 
+    24 June 2026
+
+    This class is Implement The PlatformAccountInterface & there is no implementation of the method : `getScopes`
+        so we need to implement the method `getScopes` in this class to avoid the error.
+
+*/
+
 class Account implements PlatformAccountInterface
 {
 
@@ -672,5 +682,10 @@ class Account implements PlatformAccountInterface
                 'metrics' => [],
             ];
         }
+    }
+
+    public static function getScopes(string $type = 'auth'): array
+    {
+        return [];
     }
 }

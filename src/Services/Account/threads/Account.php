@@ -12,6 +12,14 @@ use BeePost\SocialPoster\Contracts\PlatformAccountInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 
+/* 
+    24 June 2026
+
+    This class is Implement The PlatformAccountInterface & there is no implementation of the method : `getScopes`
+        so we need to implement the method `getScopes` in this class to avoid the error.
+
+*/
+
 class Account implements PlatformAccountInterface
 {
     use AccountManager;
@@ -439,5 +447,10 @@ class Account implements PlatformAccountInterface
                 'message' => strip_tags($ex->getMessage())
             ];
         }
+    }
+
+    public static function getScopes(string $type = 'auth'): array
+    {
+        return [];
     }
 }

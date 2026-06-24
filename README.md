@@ -1,371 +1,446 @@
-# BeePost Social Poster Package
+# The Definitive Step-by-Step Guide: Integrating BeePost Social Poster
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/beepost/social-poster.svg?style=flat-square)](https://packagist.org/packages/beepost/social-poster)
-[![Total Downloads](https://img.shields.io/packagist/dt/beepost/social-poster.svg?style=flat-square)](https://packagist.org/packages/beepost/social-poster)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/beepost/social-poster/run-tests.yml?branch=main&style=flat-square)](https://github.com/beepost/social-poster/actions)
-
-A reusable Laravel package for managing social media account connections and posting to popular platforms including **Facebook**, **Instagram**, **Twitter/X**, **LinkedIn**, **Threads**, **TikTok**, and **YouTube**.
-
-## Why BeePost Exists
-
-Unlike simple posting packages, BeePost Social Poster provides a complete, production-ready framework for multi-platform publishing. It is built to satisfy SaaS, multi-tenant, and complex application architectures by handling:
-
-- **Account Management**: Seamlessly connect, query, and verify platform status.
-- **Out-of-the-Box OAuth Integrations**: Pre-built OAuth2/PKCE flows for major social platforms.
-- **Secure Token Storage**: Automatically encrypts client credentials, access tokens, and refresh tokens in your database.
-- **Post Persistence**: Dedicated models to log, track, and monitor social posts.
-- **Queue Processing**: Native integration with Laravel's queue worker for robust background publishing.
-- **Event-Driven Workflows**: Fully decoupled dispatching allows customization of file handling, analytics tracking, and notification layers.
+Welcome to the complete integration guide for the **BeePost Social Poster** package. This guide is designed to take you from a fresh installation to successfully publishing posts on social networks, explaining every detail along the way so that anyone—regardless of experience level—can successfully use it.
 
 ---
 
-## Supported Features Matrix
+## Step 1: Obtain API Credentials & Configure `.env`
+To communicate with social networks, you must register your application on their respective developer portals (e.g., Google Cloud Console, Meta for Developers, TikTok for Developers).
 
-| Platform | OAuth | Text | Image | Video |
-| :--- | :---: | :---: | :---: | :---: |
-| **Facebook** | ✅ | ✅ | ✅ | ✅ |
-| **Instagram** | ✅ | ✅ | ✅ | ✅ |
-| **Twitter/X** | ✅ | ✅ | ✅ | ⚠️ |
-| **LinkedIn** | ✅ | ✅ | ✅ | ✅ |
-| **TikTok** | ✅ | ❌ | ❌ | ✅ |
-| **YouTube** | ✅ | ❌ | ❌ | ✅ |
-| **Threads** | ✅ | ✅ | ✅ | ⚠️ |
+When registering your app, you will receive a **Client ID** (or Key) and a **Client Secret**. You will also be asked to provide an **OAuth Redirect URI** (the URL the social network sends the user back to after they log in).
+
+Add your credentials to your application's `.env` file:
+
+```env
+# Facebook Credentials
+FACEBOOK_CLIENT_ID="your-facebook-app-id"
+FACEBOOK_CLIENT_SECRET="your-facebook-app-secret"
+FACEBOOK_GRAPH_API_URL="https://graph.facebook.com"
+FACEBOOK_APP_VERSION="v20.0"
+
+# Instagram Credentials
+INSTAGRAM_CLIENT_ID="your-instagram-app-id"
+INSTAGRAM_CLIENT_SECRET="your-instagram-app-secret"
+INSTAGRAM_GRAPH_API_URL="https://graph.facebook.com"
+INSTAGRAM_APP_VERSION="v20.0"
+
+# Twitter (X) Credentials
+TWITTER_CLIENT_ID="your-twitter-client-id"
+TWITTER_CLIENT_SECRET="your-twitter-client-secret"
+
+# YouTube Credentials
+YOUTUBE_CLIENT_ID="your-youtube-client-id"
+YOUTUBE_CLIENT_SECRET="your-youtube-client-secret"
+
+# TikTok Credentials
+TIKTOK_CLIENT_KEY="your-tiktok-client-key"
+TIKTOK_CLIENT_SECRET="your-tiktok-client-secret"
+
+# LinkedIn Credentials
+LINKEDIN_CLIENT_ID="your-linkedin-client-id"
+LINKEDIN_CLIENT_SECRET="your-linkedin-client-secret"
+LINKEDIN_API_VERSION="202606"
+
+# Threads Credentials
+THREADS_CLIENT_ID="your-threads-client-id"
+THREADS_CLIENT_SECRET="your-threads-client-secret"
+```
+
+> [!IMPORTANT]
+> **LinkedIn API Versioning:** LinkedIn releases versioned API updates that expire after 1 year. If you encounter API errors in the future, simply Google "LinkedIn current API version" and update the `LINKEDIN_API_VERSION` in your `.env` file to the latest active version (e.g., `YYYYMM`).
+
+> [!WARNING]
+> **Crucial Detail for Developer Consoles:**
+> When registering your app on the social platforms, you **must** whitelist your exact OAuth Redirect URIs. If your local app is running on `http://localhost:8000`, your whitelisted redirect URIs should look exactly like this:
+> - `http://localhost:8000/auth/youtube/callback`
+> - `http://localhost:8000/auth/tiktok/callback`
 
 ---
 
-## Architecture Flow
+## Step 2: Create a Dedicated Configuration File
 
-```mermaid
-graph TD
-    User -->|hasMany| SocialAccount
-    SocialAccount -->|belongsTo| MediaPlatform
-    SocialPost -->|belongsTo| SocialAccount
-    SocialPost -->|dispatches| PublishSocialPostJob
-    PublishSocialPostJob -->|executes| PlatformService[Platform Service]
-    PlatformService -->|calls API| ExternalAPI[Facebook / Twitter / LinkedIn / etc.]
-```
+> [!IMPORTANT]
+> **Laravel Best Practice:** You should **never** read directly from `.env` outside of configuration files. If your app caches its configuration in production (`php artisan config:cache`), all `env()` calls will return `null` and crash your application.
 
----
+Instead, we will map your environment variables into a dedicated Laravel configuration file.
 
-## Package Structure
-
-```
-src/
-├── Contracts/
-│   └── PlatformAccountInterface.php
-├── Enums/
-│   ├── PlanDuration.php
-│   ├── PostScheduleStatus.php
-│   └── StatusEnum.php
-├── Events/
-│   ├── SocialAccountCreated.php
-│   └── SocialPostCreated.php
-├── Jobs/
-│   └── PublishSocialPostJob.php
-├── Models/
-│   ├── SocialAccount.php
-│   └── SocialPost.php
-├── Services/
-│   └── Account/
-│       ├── facebook/
-│       ├── instagram/
-│       ├── linkedin/
-│       ├── threads/
-│       ├── tiktok/
-│       ├── twitter/
-│       └── youtube/
-├── Traits/
-│   ├── AccountManager.php
-│   └── PostManager.php
-├── helpers.php
-└── SocialPosterServiceProvider.php
-```
-
----
-
-## Installation
-
-### 1. Require the Package
-
-Install the package via Composer:
-
-```bash
-composer require beepost/social-poster
-```
-
-#### Local Development
-If you are developing locally or referencing a private repository, define the package path in your host application's `composer.json` before requiring it:
-
-```json
-"repositories": [
-    {
-        "type": "path",
-        "url": "packages/beepost/social-poster"
-    }
-]
-```
-
-### 2. Publish Configuration & Migrations
-
-Publish the package configuration:
-
-```bash
-php artisan vendor:publish --provider="BeePost\SocialPoster\SocialPosterServiceProvider" --tag="config"
-```
-
-Publish the database migrations:
-
-```bash
-php artisan vendor:publish --provider="BeePost\SocialPoster\SocialPosterServiceProvider" --tag="migrations"
-```
-
-### 3. Run Migrations
-
-Create the required database tables (`media_platforms`, `social_accounts`, and `social_posts`):
-
-```bash
-php artisan migrate
-```
-
----
-
-## Configuration
-
-The published config file is located at `config/social-poster.php`. Override default models to fit your host application:
-
+Create a new file at `config/platforms.php` and paste this content:
 ```php
+<?php
+
 return [
-    /*
-    |--------------------------------------------------------------------------
-    | Model Mapping
-    |--------------------------------------------------------------------------
-    | Define the Eloquent models used by your host application.
-    */
-    'models' => [
-        'user'         => \App\Models\User::class,
-        'admin'        => \App\Models\Admin::class,
-        'file'         => \App\Models\Core\File::class,
-        'platform'     => \App\Models\MediaPlatform::class,
-        'subscription' => \App\Models\Subscription::class,
-        'metric'       => \App\Models\PostMetric::class,
+    'facebook' => [
+        'client_id' => env('FACEBOOK_CLIENT_ID'),
+        'client_secret' => env('FACEBOOK_CLIENT_SECRET'),
+        'graph_api_url' => env('FACEBOOK_GRAPH_API_URL', 'https://graph.facebook.com'),
+        'app_version' => env('FACEBOOK_APP_VERSION', 'v20.0'),
     ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Queue Settings
-    |--------------------------------------------------------------------------
-    | Specify whether posting should be run synchronously or queued.
-    */
-    'queue' => [
-        'enabled' => true,
-        'name'    => 'social-poster',
+    'instagram' => [
+        'client_id' => env('INSTAGRAM_CLIENT_ID'),
+        'client_secret' => env('INSTAGRAM_CLIENT_SECRET'),
+        'graph_api_url' => env('INSTAGRAM_GRAPH_API_URL', 'https://graph.facebook.com'),
+        'app_version' => env('INSTAGRAM_APP_VERSION', 'v20.0'),
     ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Storage Settings
-    |--------------------------------------------------------------------------
-    | Path to store media or configuration cache relative to storage root.
-    */
-    'file_path' => 'social-poster',
+    'twitter' => [
+        'client_id' => env('TWITTER_CLIENT_ID'),
+        'client_secret' => env('TWITTER_CLIENT_SECRET'),
+    ],
+    'youtube' => [
+        'client_id' => env('YOUTUBE_CLIENT_ID'),
+        'client_secret' => env('YOUTUBE_CLIENT_SECRET'),
+    ],
+    'tiktok' => [
+        'client_key' => env('TIKTOK_CLIENT_KEY'),
+        'client_secret' => env('TIKTOK_CLIENT_SECRET'),
+    ],
+    'linkedin' => [
+        'client_id' => env('LINKEDIN_CLIENT_ID'),
+        'client_secret' => env('LINKEDIN_CLIENT_SECRET'),
+        'api_version' => env('LINKEDIN_API_VERSION', '202606'),
+    ],
+    'threads' => [
+        'client_id' => env('THREADS_CLIENT_ID'),
+        'client_secret' => env('THREADS_CLIENT_SECRET'),
+    ],
 ];
 ```
 
 ---
 
-## Supported Platforms & OAuth Credentials
+## Step 3: Seed the Database with Your Configurations
 
-Add the credentials for each social media provider to your host application's `.env` file:
+**Why do we do this?** 
+Unlike simple packages that read directly from the filesystem, BeePost Social Poster is built for scale. It reads OAuth keys from the `configuration` JSON column inside your `media_platforms` database table. This allows for multi-tenant setups where different users might have their own API keys.
 
-```env
-# Facebook & Instagram Graph API
-FACEBOOK_CLIENT_ID=your_client_id
-FACEBOOK_CLIENT_SECRET=your_client_secret
-FACEBOOK_REDIRECT_URI="${APP_URL}/social/facebook/callback"
+You must save your configurations into the database. We will create a Seeder to automate this.
 
-# Twitter/X API v2 (OAuth 2.0 PKCE)
-TWITTER_CLIENT_ID=your_client_id
-TWITTER_CLIENT_SECRET=your_client_secret
-TWITTER_REDIRECT_URI="${APP_URL}/social/twitter/callback"
+Run this command in your terminal:
+```bash
+php artisan make:seeder MediaPlatformSeeder
+```
 
-# LinkedIn OAuth 2.0
-LINKEDIN_CLIENT_ID=your_client_id
-LINKEDIN_CLIENT_SECRET=your_client_secret
-LINKEDIN_REDIRECT_URI="${APP_URL}/social/linkedin/callback"
+Open `database/seeders/MediaPlatformSeeder.php` and replace its contents with this highly detailed seeder:
 
-# YouTube (Google OAuth 2.0)
-YOUTUBE_CLIENT_ID=your_client_id
-YOUTUBE_CLIENT_SECRET=your_client_secret
-YOUTUBE_REDIRECT_URI="${APP_URL}/social/youtube/callback"
+```php
+namespace Database\Seeders;
 
-# TikTok API
-TIKTOK_CLIENT_KEY=your_client_key
-TIKTOK_CLIENT_SECRET=your_client_secret
-TIKTOK_REDIRECT_URI="${APP_URL}/social/tiktok/callback"
+use Illuminate\Database\Seeder;
+use App\Models\MediaPlatform;
+
+class MediaPlatformSeeder extends Seeder
+{
+    public function run()
+    {
+        // 1. YouTube
+        MediaPlatform::updateOrCreate(
+            ['slug' => 'youtube'],
+            [
+                'name' => 'YouTube',
+                'configuration' => [
+                    'client_id' => config('platforms.youtube.client_id'),
+                    'client_secret' => config('platforms.youtube.client_secret'),
+                ]
+            ]
+        );
+
+        // 2. Facebook
+        MediaPlatform::updateOrCreate(
+            ['slug' => 'facebook'],
+            [
+                'name' => 'Facebook',
+                'configuration' => [
+                    'client_id' => config('platforms.facebook.client_id'),
+                    'client_secret' => config('platforms.facebook.client_secret'),
+                    'graph_api_url' => config('platforms.facebook.graph_api_url'),
+                    'app_version' => config('platforms.facebook.app_version'),
+                ]
+            ]
+        );
+
+        // 3. Instagram
+        MediaPlatform::updateOrCreate(
+            ['slug' => 'instagram'],
+            [
+                'name' => 'Instagram',
+                'configuration' => [
+                    'client_id' => config('platforms.instagram.client_id'),
+                    'client_secret' => config('platforms.instagram.client_secret'),
+                    'graph_api_url' => config('platforms.instagram.graph_api_url'),
+                    'app_version' => config('platforms.instagram.app_version'),
+                ]
+            ]
+        );
+
+        // 4. Twitter (X)
+        MediaPlatform::updateOrCreate(
+            ['slug' => 'twitter'],
+            [
+                'name' => 'Twitter',
+                'configuration' => [
+                    'client_id' => config('platforms.twitter.client_id'),
+                    'client_secret' => config('platforms.twitter.client_secret'),
+                ]
+            ]
+        );
+
+        // 5. TikTok
+        // WATCH OUT: TikTok's API specifically requires the key to be named 'client_key' instead of 'client_id'
+        MediaPlatform::updateOrCreate(
+            ['slug' => 'tiktok'],
+            [
+                'name' => 'TikTok',
+                'configuration' => [
+                    'client_key' => config('platforms.tiktok.client_key'),
+                    'client_secret' => config('platforms.tiktok.client_secret'),
+                ]
+            ]
+        );
+
+        // 6. LinkedIn
+        MediaPlatform::updateOrCreate(
+            ['slug' => 'linkedin'],
+            [
+                'name' => 'LinkedIn',
+                'configuration' => [
+                    'client_id' => config('platforms.linkedin.client_id'),
+                    'client_secret' => config('platforms.linkedin.client_secret'),
+                    'api_version' => config('platforms.linkedin.api_version'),
+                ]
+            ]
+        );
+
+        // 7. Threads
+        MediaPlatform::updateOrCreate(
+            ['slug' => 'threads'],
+            [
+                'name' => 'Threads',
+                'configuration' => [
+                    'client_id' => config('platforms.threads.client_id'),
+                    'client_secret' => config('platforms.threads.client_secret'),
+                ]
+            ]
+        );
+    }
+}
+```
+
+Run the seeder to populate the database:
+```bash
+php artisan db:seed --class=MediaPlatformSeeder
 ```
 
 ---
 
-## OAuth & Connection Flow
+## Step 3: Add the `filePath()` Global Helper (Mandatory)
 
-All platform account services implement `BeePost\SocialPoster\Contracts\PlatformAccountInterface`.
+**Why is this needed?**
+When you post an image or a video, the package must locate the file on your server. Because every Laravel application handles file uploads and database records differently, the package expects **you** to define a global `filePath()` helper function. If you skip this step, uploads will crash with a "Call to undefined function filePath()" error.
 
-### Step 1: Redirecting to Provider
-Initiate authorization flows using the respective platform service. For example, using the Twitter/X PKCE flow:
+**How to add it correctly:**
+1. Open your `composer.json` file and add a `files` array under `autoload`:
+```json
+"autoload": {
+    "psr-4": {
+        "App\\": "app/",
+        "Database\\Factories\\": "database/factories/",
+        "Database\\Seeders\\": "database/seeders/"
+    },
+    "files": [
+        "app/helpers.php"
+    ]
+},
+```
+
+2. Create a new file at `app/helpers.php` and paste this code:
+```php
+<?php
+
+if (! function_exists('filePath')) {
+    /**
+     * Resolve the exact file path for the Social Poster package.
+     *
+     * @param  mixed  $file    Your application's File model instance
+     * @param  string|null  $context 
+     * @return string
+     */
+    function filePath($file, $context = null)
+    {
+        // This function receives your database's File model.
+        // You must return the relative path to the file. 
+        // Example: If your File model has a 'path' column, return it like this:
+        return $file->path; 
+    }
+}
+```
+
+3. Run this terminal command to reload Composer:
+```bash
+composer dump-autoload
+```
+
+---
+
+## Step 4: The OAuth Flow (Connecting User Accounts)
+
+To allow a user to connect their YouTube or TikTok account to your app, you need an OAuth flow. This consists of two routes:
+1. **Redirect:** Sends the user to the platform's login page.
+2. **Callback:** Catches the user when the platform sends them back, exchanges their authorization code for a secret Access Token, and saves it.
+
+### A. Define the Routes
+Open `routes/web.php` and add:
+```php
+use App\Http\Controllers\OAuthController;
+
+// The {platform} parameter makes this dynamic (e.g. /auth/youtube/redirect or /auth/tiktok/redirect)
+Route::get('/auth/{platform}/redirect', [OAuthController::class, 'redirect'])->name('social.redirect');
+Route::get('/auth/{platform}/callback', [OAuthController::class, 'callback'])->name('social.callback');
+```
+
+### B. Create the Controller
+Create `app/Http/Controllers/OAuthController.php`:
 
 ```php
-use BeePost\SocialPoster\Services\Account\twitter\Account as TwitterAccount;
-use BeePost\SocialPoster\Models\MediaPlatform;
+namespace App\Http\Controllers;
+
 use Illuminate\Http\Request;
+use App\Models\MediaPlatform;
+use Exception;
 
 class OAuthController extends Controller
 {
-    public function redirectToTwitter(Request $request)
+    /**
+     * Resolves the correct package class based on the platform slug.
+     */
+    private function getPlatformClass($slug)
     {
-        $platform = MediaPlatform::where('slug', 'twitter')->firstOrFail();
-        $twitterService = app(TwitterAccount::class);
+        $classes = [
+            'youtube' => \BeePost\SocialPoster\Services\Account\youtube\Account::class,
+            'tiktok' => \BeePost\SocialPoster\Services\Account\tiktok\Account::class,
+            'facebook' => \BeePost\SocialPoster\Services\Account\facebook\Account::class,
+            'twitter' => \BeePost\SocialPoster\Services\Account\twitter\Account::class,
+        ];
 
-        // Generates secure state, PKCE verifiers, caches them, and returns authorization URL.
-        $url = $twitterService->redirectToConnect($platform);
-
-        return redirect()->away($url);
-    }
-}
-```
-
-### Step 2: Handling Callback
-Handle callback parameters from the OAuth provider inside your callback handler:
-
-```php
-    public function handleTwitterCallback(Request $request)
-    {
-        $platform = MediaPlatform::where('slug', 'twitter')->firstOrFail();
-        $twitterService = app(TwitterAccount::class);
-
-        // Authenticates code against cached verifiers
-        $response = $twitterService->connect($platform, $request->all());
-
-        if ($response['status'] === 'success') {
-            // Save the connected social account
-            $account = SocialAccount::create([
-                'platform_id'         => $platform->id,
-                'user_id'             => auth()->id(),
-                'name'                => $response['account_name'],
-                'account_information' => $response['account_information'], // Cast automatically encrypts
-                'token'               => $response['token'],               // Cast automatically encrypts
-                'refresh_token'       => $response['refresh_token'] ?? null, // Cast automatically encrypts
-                'status'              => '1',
-                'is_connected'        => '1',
-            ]);
-
-            return redirect()->route('dashboard')->with('success', 'Twitter connected!');
+        if (!array_key_exists($slug, $classes)) {
+            abort(404, "Platform not supported.");
         }
 
-        return redirect()->route('dashboard')->with('error', $response['message']);
+        return new $classes[$slug]();
     }
-```
 
----
-
-## Event Documentation
-
-The package dispatches events during core actions to stay decoupled from host applications:
-
-### 1. `SocialAccountCreated`
-Fired immediately after an account is successfully linked and saved.
-* **Payload**: `BeePost\SocialPoster\Events\SocialAccountCreated`
-* **Properties**:
-  - `$account`: The `SocialAccount` model instance.
-  - `$platform`: The related `MediaPlatform` model instance.
-
-### 2. `SocialPostCreated`
-Fired right after post models are created, allowing host applications to process billing, credits, or log telemetry.
-* **Payload**: `BeePost\SocialPoster\Events\SocialPostCreated`
-* **Properties**:
-  - `$postsCreated`: Array of `SocialPost` model instances.
-  - `$totalPost`: Total count of posts created.
-  - `$user`: The owner user instance (or null if admin post).
-  - `$admin`: The owner admin instance (or null if user post).
-
-> [!NOTE]
-> To avoid serialization exceptions on non-serializable objects (like `Illuminate\Http\UploadedFile`), file attachments are not passed inside the event payload. Developers should handle file uploads and storage in their service or controller before invoking `savePost()`, or query files directly from the request context in synchronous listeners.
-
-#### Custom Event Listener Example:
-```php
-namespace App\Listeners;
-
-use BeePost\SocialPoster\Events\SocialPostCreated;
-
-class HandleSocialPostCreatedTelemetry
-{
-    public function handle(SocialPostCreated $event)
+    public function redirect($platformSlug)
     {
-        $owner = $event->user ?? $event->admin;
-        
-        // Deduct posting credits or update log tables
-        $owner->decrement('credits', $event->accountsCount);
+        try {
+            $platform = MediaPlatform::where('slug', $platformSlug)->firstOrFail();
+            
+            // Get the class (e.g., YouTubeAccount)
+            $platformApi = $this->getPlatformClass($platformSlug);
+            
+            // Generate the secure OAuth URL and redirect the user
+            $url = $platformApi::authRedirect($platform);
+            
+            return redirect()->away($url);
+        } catch (Exception $e) {
+            return redirect('/')->with('error', 'Error initializing connection: ' . $e->getMessage());
+        }
+    }
+
+    public function callback(Request $request, $platformSlug)
+    {
+        try {
+            $platform = MediaPlatform::where('slug', $platformSlug)->firstOrFail();
+            $platformApi = $this->getPlatformClass($platformSlug);
+            
+            // This exchanges the code for a token and saves the account securely to the database
+            $response = $platformApi->connect($platform, $request->all());
+
+            return redirect('/')->with('success', ucfirst($platformSlug) . ' account connected successfully!');
+        } catch (Exception $e) {
+            return redirect('/')->with('error', 'Failed to connect: ' . $e->getMessage());
+        }
     }
 }
 ```
 
 ---
 
-## Queue & Asynchronous Posting
+## Step 5: Publishing Your First Post
 
-Posting to social networks synchronously in the request cycle can trigger timeout issues. The package provides a queueable job, `PublishSocialPostJob`.
+You have your keys, the helper is loaded, and the account is connected. You are ready to post! 
 
-### Dispatching the Job
+Here is a highly detailed controller method showing exactly how to upload a video to YouTube.
 
-When a post is scheduled or created:
-
+1. Add a route in `routes/web.php`:
 ```php
-use BeePost\SocialPoster\Jobs\PublishSocialPostJob;
+Route::post('/upload/{platform}', [App\Http\Controllers\PostController::class, 'upload'])->name('social.upload');
+```
 
-// Inside your Controller or PostManager trait usage:
-foreach ($postsCreated as $post) {
-    if (config('social-poster.queue.enabled')) {
-        PublishSocialPostJob::dispatch($post)
-            ->onQueue(config('social-poster.queue.name'));
-    } else {
-        // Fallback to synchronous publishing
-        app(PostManager::class)->publishPost($post);
+2. Create `app/Http/Controllers/PostController.php`:
+```php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use BeePost\SocialPoster\Models\SocialAccount;
+use BeePost\SocialPoster\Models\SocialPost;
+use BeePost\SocialPoster\Enums\PostType;
+use App\Models\MediaPlatform;
+use Exception;
+
+class PostController extends Controller
+{
+    public function upload(Request $request, $platformSlug)
+    {
+        // Ensure you validate the request (omitted here for brevity)
+
+        try {
+            // 1. Resolve the platform and the connected account
+            $platform = MediaPlatform::where('slug', $platformSlug)->firstOrFail();
+            $account = SocialAccount::where('platform_id', $platform->id)->firstOrFail();
+
+            // 2. Handle the File Upload
+            // You must save the uploaded file to your server and create a File model record.
+            $uploadedFile = $request->file('video');
+            $filename = time() . '_' . $uploadedFile->getClientOriginalName();
+            $uploadedFile->move(public_path('uploads'), $filename);
+
+            // Create your application's File model record
+            // (The `filePath` helper you created in Step 3 will read the 'path' from this model)
+            $fileModel = new \App\Models\File([
+                'path' => 'uploads/' . $filename,
+            ]);
+            $fileModel->save();
+
+            // 3. Create the SocialPost Record
+            $post = new SocialPost([
+                'content' => $request->input('description', 'My Awesome Post!'),
+                'post_type' => PostType::SHORTS->value, // Or PostType::POST->value depending on your needs
+                'account_id' => $account->id,
+            ]);
+
+            // 4. Bind the Relations (Crucial Step!)
+            // The package needs the account and file models attached to the post dynamically
+            $post->setRelation('account', $account);
+            $post->setRelation('file', collect([$fileModel])); 
+
+            // 5. Fire it off to the social network!
+            // We use the same dynamic class resolution method shown in Step 4
+            $platformApiClass = "\\BeePost\\SocialPoster\\Services\\Account\\{$platformSlug}\\Account";
+            $api = new $platformApiClass();
+            
+            $result = $api->send($post);
+
+            // 6. Handle the Response
+            if ($result['status'] === true) {
+                return back()->with('success', 'Posted successfully! View here: ' . ($result['url'] ?? 'Processing...'));
+            } else {
+                return back()->with('error', 'API Error: ' . ($result['response'] ?? 'Unknown error occurred.'));
+            }
+
+        } catch (Exception $e) {
+            return back()->with('error', 'System Error: ' . $e->getMessage());
+        }
     }
 }
 ```
 
-### Job Configurations
-
-The `PublishSocialPostJob` incorporates:
-- **Tries**: 3 attempts.
-- **Backoff**: Exponential backoff (delaying 10, 20, then 40 seconds on subsequent failures).
-- **Exceptions**: Gracefully handles network and API errors.
-
-Ensure your queue worker is running:
-```bash
-php artisan queue:work --queue=social-poster
-```
-
----
-
-## Helper Wrapper Functions
-
-The package exposes helper functions registered in `src/helpers.php`:
-
-- `social_poster_trans($key, $replace = [])`: Translation wrapper falling back to the package trans string or host localization files.
-- `social_poster_response_status($status)`: Resolves default responses and response structures for account connection requests.
-
----
-
-## Testing
-
-Run tests with **Pest PHP**:
-
-```bash
-vendor/bin/pest
-```
-
----
-
-## License
-
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+### You're Done!
+By following these 5 steps, you have securely configured your OAuth application, connected a user to a platform, and dispatched media successfully! You can easily extend the `OAuthController` and `PostController` to handle any other platform included in the BeePost package.

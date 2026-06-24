@@ -431,7 +431,6 @@ class Account implements PlatformAccountInterface
             $apiResponse = Http::get($api, [
                 'access_token' => $token,
                 'fields' => $fields
-
             ]);
 
             $apiResponse = $apiResponse->json();
@@ -452,14 +451,56 @@ class Account implements PlatformAccountInterface
             }
 
 
-            if (isset($apiResponse['error'])) {
+            // if (isset($apiResponse['error'])) {
 
-                $this->disConnectAccount($account);
+            //     $this->disConnectAccount($account);
+            //     return [
+            //         'status' => false,
+            //         'message' => $apiResponse['error']['message']
+            //     ];
+            // }
+
+
+            /*
+                      24 JUN 2026
+
+                   The Above Code is Checking The Feed first but some API credentials may need some permission for reading 
+                       Such as 'pages_read_engagement' & if the user has no permission for this then we will strictly return
+                       error which is not good for the UX , AS user token is valid & Still getting error.
+
+                   Below Code is improved Version Of the Code.
+            */
+
+            
+             if (isset($apiResponse['error'])) {
+                // We Will Verify with the meta server that current token is valid or not
+                $checkApi = $baseApi . "/" . $apiVersion . "/" . $account->account_id;
+                $checkResponse = Http::get($checkApi, [
+                    'access_token' => $token,
+                    'fields' => 'id'
+                ])->json();
+
+                /* 
+                    If still get error this time so now we are sure the token is invalid
+                        & we will continue to disconnect the account.
+                */
+                if (isset($checkResponse['error'])) {
+                    $this->disConnectAccount($account);
+                    return [
+                        'status' => false,
+                        'message' => $apiResponse['error']['message']
+                    ];
+                }
+
+                // If checkResponse is successful, the token is valid, but the read feed permission (pages_read_engagement) is missing.
+                // We return status true so that writing/posting can still proceed.
                 return [
-                    'status' => false,
-                    'message' => $apiResponse['error']['message']
+                    'status' => true,
+                    'response' => [],
+                    'page_insights' => [],
                 ];
             }
+            
 
             return ([
                 'status' => true,
