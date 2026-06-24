@@ -1,0 +1,53 @@
+{
+    "name": "beepost/social-poster",
+    "description": "Social media account connection and posting management package for BeePost.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "BeePost Team"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^10.0|^11.0|^12.0",
+        "abraham/twitteroauth": "^7.0",
+        "janu-software/facebook-php-sdk": "^0.2.1",
+        "coderjerk/bird-elephant": "^0.7.0",
+        "php-http/guzzle7-adapter": "^1.1"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0|^9.0|^10.0",
+        "pestphp/pest": "^2.0|^3.0",
+        "pestphp/pest-plugin-laravel": "^2.0|^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "BeePost\\SocialPoster\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "BeePost\\SocialPoster\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "BeePost\\SocialPoster\\SocialPosterServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "pestphp/pest-plugin": true
+        }
+    }
+}
